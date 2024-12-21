@@ -4,10 +4,10 @@
 cur_frm.cscript.tax_table = "Sales Taxes and Charges";
 
 erpnext.accounts.taxes.setup_tax_filters("Sales Taxes and Charges");
-erpnext.accounts.taxes.setup_tax_validations("Sales Order");
+erpnext.accounts.taxes.setup_tax_validations("Updated Sales Order");
 erpnext.sales_common.setup_selling_controller();
 
-frappe.ui.form.on("Sales Order", {
+frappe.ui.form.on("Updated Sales Order", {
 	setup: function (frm) {
 		frm.custom_make_buttons = {
 			"Delivery Note": "Delivery Note",
@@ -54,97 +54,219 @@ frappe.ui.form.on("Sales Order", {
 	},
 
 	refresh: function (frm) {
-		if (frm.doc.docstatus === 1) {
-			if (
-				frm.doc.status !== "Closed" &&
-				flt(frm.doc.per_delivered, 2) < 100 &&
-				flt(frm.doc.per_billed, 2) < 100 &&
-				frm.has_perm("write")
-			) {
-				frm.add_custom_button(__("Update Items"), () => {
-					erpnext.utils.update_child_items({
-						frm: frm,
-						child_docname: "items",
-						child_doctype: "Sales Order Detail",
-						cannot_add_row: false,
-						has_reserved_stock: frm.doc.__onload && frm.doc.__onload.has_reserved_stock,
-					});
-				});
-
-				// Stock Reservation > Reserve button should only be visible if the SO has unreserved stock and no Pick List is created against the SO.
-				if (
-					frm.doc.__onload &&
-					frm.doc.__onload.has_unreserved_stock &&
-					flt(frm.doc.per_picked) === 0
-				) {
-					frm.add_custom_button(
-						__("Reserve"),
-						() => frm.events.create_stock_reservation_entries(frm),
-						__("Stock Reservation")
-					);
-				}
-			}
-
-			// Stock Reservation > Unreserve button will be only visible if the SO has un-delivered reserved stock.
-			if (
-				frm.doc.__onload &&
-				frm.doc.__onload.has_reserved_stock &&
-				frappe.model.can_cancel("Stock Reservation Entry")
-			) {
-				frm.add_custom_button(
-					__("Unreserve"),
-					() => frm.events.cancel_stock_reservation_entries(frm),
-					__("Stock Reservation")
-				);
-			}
-
-			frm.doc.items.forEach((item) => {
-				if (flt(item.stock_reserved_qty) > 0 && frappe.model.can_read("Stock Reservation Entry")) {
-					frm.add_custom_button(
-						__("Reserved Stock"),
-						() => frm.events.show_reserved_stock(frm),
-						__("Stock Reservation")
-					);
-					return;
-				}
-			});
-		}
-
-		if (frm.doc.docstatus === 0) {
-			if (frm.doc.is_internal_customer) {
-				frm.events.get_items_from_internal_purchase_order(frm);
-			}
-
-			if (frm.doc.docstatus === 0) {
-				frappe.call({
-					method: "erpnext.selling.doctype.sales_order.sales_order.get_stock_reservation_status",
-					callback: function (r) {
-						if (!r.message) {
-							frm.set_value("reserve_stock", 0);
-							frm.set_df_property("reserve_stock", "read_only", 1);
-							frm.set_df_property("reserve_stock", "hidden", 1);
-							frm.fields_dict.items.grid.update_docfield_property("reserve_stock", "hidden", 1);
-							frm.fields_dict.items.grid.update_docfield_property(
-								"reserve_stock",
-								"default",
-								0
-							);
-							frm.fields_dict.items.grid.update_docfield_property(
-								"reserve_stock",
-								"read_only",
-								1
-							);
-						}
-					},
-				});
-			}
-		}
-
-		// Hide `Reserve Stock` field description in submitted or cancelled Sales Order.
-		if (frm.doc.docstatus > 0) {
-			frm.set_df_property("reserve_stock", "description", null);
-		}
-	},
+        if (frm.doc.docstatus === 1) {
+            if (
+                frm.doc.status !== "Closed" &&
+                flt(frm.doc.per_delivered, 2) < 100 &&
+                flt(frm.doc.per_billed, 2) < 100 &&
+                frm.has_perm("write")
+            ) {
+                frm.add_custom_button(__("Update Items"), () => {
+                    erpnext.utils.update_child_items({
+                        frm: frm,
+                        child_docname: "items",
+                        child_doctype: "Sales Order Detail",
+                        cannot_add_row: false,
+                        has_reserved_stock: frm.doc.__onload && frm.doc.__onload.has_reserved_stock,
+                    });
+                });
+    
+                if (
+                    frm.doc.__onload &&
+                    frm.doc.__onload.has_unreserved_stock &&
+                    flt(frm.doc.per_picked) === 0
+                ) {
+                    frm.add_custom_button(
+                        __("Reserve"),
+                        () => frm.events.create_stock_reservation_entries(frm),
+                        __("Stock Reservation")
+                    );
+                }
+            }
+    
+            if (
+                frm.doc.__onload &&
+                frm.doc.__onload.has_reserved_stock &&
+                frappe.model.can_cancel("Stock Reservation Entry")
+            ) {
+                frm.add_custom_button(
+                    __("Unreserve"),
+                    () => frm.events.cancel_stock_reservation_entries(frm),
+                    __("Stock Reservation")
+                );
+            }
+    
+            frm.doc.items.forEach((item) => {
+                if (flt(item.stock_reserved_qty) > 0 && frappe.model.can_read("Stock Reservation Entry")) {
+                    frm.add_custom_button(
+                        __("Reserved Stock"),
+                        () => frm.events.show_reserved_stock(frm),
+                        __("Stock Reservation")
+                    );
+                    return;
+                }
+            });
+        }
+    
+        if (frm.doc.docstatus === 0) {
+            if (frm.doc.is_internal_customer) {
+                frm.events.get_items_from_internal_purchase_order(frm);
+            }
+    
+            if (frm.doc.docstatus === 0) {
+                frappe.call({
+                    method: "erpnext.selling.doctype.sales_order.sales_order.get_stock_reservation_status",
+                    callback: function (r) {
+                        if (!r.message) {
+                            frm.set_value("reserve_stock", 0);
+                            frm.set_df_property("reserve_stock", "read_only", 1);
+                            frm.set_df_property("reserve_stock", "hidden", 1);
+                            frm.fields_dict.items.grid.update_docfield_property("reserve_stock", "hidden", 1);
+                            frm.fields_dict.items.grid.update_docfield_property("reserve_stock", "default", 0);
+                            frm.fields_dict.items.grid.update_docfield_property("reserve_stock", "read_only", 1);
+                        }
+                    },
+                });
+            }
+        }
+    
+        if (frm.doc.docstatus > 0) {
+            frm.set_df_property("reserve_stock", "description", null);
+        }
+    
+        // Listen for click events on the rows of the items table
+        frm.fields_dict.items.grid.wrapper.on("click", ".grid-row", function (event) {
+            const row_index = $(this).index();
+            const child_row = frm.fields_dict.items.grid.get_data()[row_index];
+    
+            if (child_row && child_row.item_code) {
+                // Fetch and set item image
+                frappe.db
+                    .get_value("Item", { item_code: child_row.item_code }, "image")
+                    .then((r) => {
+                        const item_image = r.message.image || null;
+    
+                        if (item_image) {
+                            frm.set_value("attach_image", item_image);
+                            frm.refresh_field("attach_image");
+    
+                            frm.set_value("item_image", item_image);
+                            frm.refresh_field("item_image");
+    
+                            $(frm.fields_dict["item_image"].wrapper)
+                                .find("img")
+                                .css({
+                                    "max-width": "10rem",
+                                    height: "auto",
+                                });
+                        } else {
+                            frappe.msgprint(
+                                __("No image found for item: {0}", [child_row.item_code])
+                            );
+                        }
+                    })
+                    .catch((err) => {
+                        frappe.msgprint(
+                            __("Failed to fetch image for item: {0}. Error: {1}", [
+                                child_row.item_code,
+                                err.message || "Unknown Error",
+                            ])
+                        );
+                    });
+    
+                // Fetch stock ledger details
+                if (child_row._message_shown) {
+                    return; // Skip if message already shown for this row
+                }
+    
+                const to_date = frappe.datetime.get_today();
+                const from_date = frappe.datetime.add_days(to_date, -90);
+    
+                const filters = {
+                    item_code: child_row.item_code,
+                    from_date: from_date,
+                    to_date: to_date,
+                };
+    
+                frappe.call({
+                    method: "frappe.desk.query_report.run",
+                    args: {
+                        report_name: "Stock Ledger",
+                        filters: filters,
+                    },
+                    callback: function (response) {
+                        const result = response.message;
+    
+                        if (result && result.result && result.result.length > 0) {
+                            const stock_entries = result.result;
+                            const warehouse_qty_map = {};
+    
+                            // Accumulate quantities by warehouse
+                            stock_entries.forEach((entry) => {
+                                const warehouse = entry["warehouse"] || "Unknown Warehouse";
+                                const in_qty = entry["in_qty"] || 0;
+    
+                                if (warehouse_qty_map[warehouse]) {
+                                    warehouse_qty_map[warehouse] += in_qty;
+                                } else {
+                                    warehouse_qty_map[warehouse] = in_qty;
+                                }
+                            });
+    
+                            frm.clear_table("item_stock_detail");
+    
+                            Object.keys(warehouse_qty_map).forEach((warehouse) => {
+                                frm.add_child("item_stock_detail", {
+                                    warehouse: warehouse,
+                                    quantity: warehouse_qty_map[warehouse],
+                                });
+                            });
+    
+                            frm.refresh_field("item_stock_detail");
+    
+                            // Mark that a message has been shown for this item
+                            child_row._message_shown = true;
+                        } else {
+                            frappe.msgprint(
+                                __(
+                                    "No stock details found for item: {0}. Please check Stock Ledger report.",
+                                    [child_row.item_code]
+                                )
+                            );
+                        }
+                    },
+                    error: function (err) {
+                        frappe.msgprint(
+                            __("Failed to fetch data from Stock Ledger. Error: {0}", [
+                                err.message || "Unknown Error",
+                            ])
+                        );
+                    },
+                });
+            }
+        });
+    },
+    
+    attach_image: function (frm) {
+        const attach_image = frm.doc.attach_image;
+    
+        if (attach_image) {
+            frm.set_value("item_image", attach_image);
+            frm.refresh_field("item_image");
+    
+            $(frm.fields_dict["item_image"].wrapper)
+                .find("img")
+                .css({
+                    "max-width": "10rem",
+                    height: "auto",
+                });
+        } else {
+            frappe.msgprint(
+                __("No image is attached to update the item image.")
+            );
+        }
+    },
+    
 
 	get_items_from_internal_purchase_order(frm) {
 		if (!frappe.model.can_read("Purchase Order")) {
